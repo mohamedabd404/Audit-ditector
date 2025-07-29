@@ -312,6 +312,25 @@ with st.sidebar:
     if selected_agent != st.session_state.selected_agent:
         st.session_state.selected_agent = selected_agent
     
+    # Campaign filter
+    if 'campaign_options' not in st.session_state:
+        st.session_state.campaign_options = ['All campaigns']
+    
+    # Initialize selected_campaign in session state if not exists
+    if 'selected_campaign' not in st.session_state:
+        st.session_state.selected_campaign = 'All campaigns'
+    
+    # Update campaign options if we have data
+    if 'original_df' in st.session_state and 'Current campaign' in st.session_state.original_df.columns:
+        campaign_names = ['All campaigns'] + list(st.session_state.original_df['Current campaign'].unique())
+        st.session_state.campaign_options = campaign_names
+    
+    selected_campaign = st.selectbox("Select Campaign", st.session_state.campaign_options, key="campaign_selectbox")
+    
+    # Update session state when selection changes
+    if selected_campaign != st.session_state.selected_campaign:
+        st.session_state.selected_campaign = selected_campaign
+    
     # Download button
     if st.button("Download Agent Audit"):
         if uploaded_file is not None:
@@ -383,9 +402,16 @@ if uploaded_file is not None:
     df['Recording Length (Formatted)'] = df['Recording Length (Seconds)'].apply(format_duration)
     original_df['Recording Length (Formatted)'] = original_df['Recording Length (Seconds)'].apply(format_duration)
     
-    # Filter data based on selected agent
+    # Create separate filtered dataframes
+    # For flagged calls - only filter by agent
+    flagged_filtered_df = df.copy()
     if st.session_state.selected_agent and st.session_state.selected_agent != 'All users':
-        df = df[df['Agent Name'] == st.session_state.selected_agent]
+        flagged_filtered_df = flagged_filtered_df[flagged_filtered_df['Agent Name'] == st.session_state.selected_agent]
+    
+    # For campaign summary - only filter by campaign
+    campaign_filtered_df = df.copy()
+    if st.session_state.selected_campaign and st.session_state.selected_campaign != 'All campaigns':
+        campaign_filtered_df = campaign_filtered_df[campaign_filtered_df['Current campaign'] == st.session_state.selected_campaign]
     
     # Overall Summary
     st.markdown('<div class="overall-summary-header">Overall Summary</div>', unsafe_allow_html=True)
@@ -450,11 +476,13 @@ if uploaded_file is not None:
         
         st.dataframe(agent_summary, use_container_width=True)
     
+
+    
     # Flagged Calls
     st.markdown('<div class="section-header">Flagged Calls</div>', unsafe_allow_html=True)
     
-    # Get flagged calls
-    flagged_calls = df[df[['Flag - Voicemail Over 15 sec', 'Flag - Dead Call Over 15 sec', 
+    # Get flagged calls from agent-filtered data only
+    flagged_calls = flagged_filtered_df[flagged_filtered_df[['Flag - Voicemail Over 15 sec', 'Flag - Dead Call Over 15 sec', 
                            'Flag - Decision Maker - NYI Under 10 sec', 'Flag - Wrong Number Under 10 sec', 
                            'Flag - Unknown Under 5 sec']].eq('Check').any(axis=1)]
     
@@ -463,18 +491,18 @@ if uploaded_file is not None:
         
         with col1:
             # Display flagged calls table with specific columns
-            display_columns = ['Agent Name', 'Disposition', 'Recording Length (Formatted)', 'Phone Number']
+            display_columns = ['Agent Name', 'Current campaign', 'Disposition', 'Recording Length (Formatted)', 'Phone Number']
             available_columns = [col for col in display_columns if col in flagged_calls.columns]
             
             if available_columns:
                 st.dataframe(flagged_calls[available_columns], use_container_width=True)
         
         with col2:
-            # Pie chart - Show only specific dispositions for selected agent
+            # Pie chart - Show only specific dispositions for agent-filtered data
             # Filter to only show the 4 specific dispositions
             specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown']
-            filtered_df = df[df['Disposition'].isin(specific_dispositions)]
-            disposition_counts = filtered_df['Disposition'].value_counts()
+            pie_chart_df = flagged_filtered_df[flagged_filtered_df['Disposition'].isin(specific_dispositions)]
+            disposition_counts = pie_chart_df['Disposition'].value_counts()
             
             color_map = {
                 'Decision Maker - NYI': '#4C84FF',
@@ -504,12 +532,12 @@ if uploaded_file is not None:
         
         # Disposition Summary
         
-        # Calculate totals for the 4 specific dispositions
+        # Calculate totals for the 4 specific dispositions from agent-filtered data
         specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown']
         disposition_totals = {}
         
         for disposition in specific_dispositions:
-            disposition_totals[disposition] = len(df[df['Disposition'] == disposition])
+            disposition_totals[disposition] = len(flagged_filtered_df[flagged_filtered_df['Disposition'] == disposition])
         
         # Create summary cards
         col1, col2, col3, col4 = st.columns(4)
@@ -570,3 +598,112 @@ if uploaded_file is not None:
 
 else:
     st.info("Please upload a CSV file to begin analysis.")
+
+# Campaign Summary - Collapsible Section (at the end)
+if uploaded_file is not None and 'Current campaign' in original_df.columns:
+    st.markdown("---")
+    
+    # Collapsible section
+    with st.expander("📊 Campaign Summary - Disposition Distribution", expanded=False):
+        st.markdown('<div class="section-header">Campaign Summary - Disposition Distribution</div>', unsafe_allow_html=True)
+        
+        # Filter to only show the 5 specific dispositions for selected campaign (including Voicemail)
+        specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown', 'Voicemail']
+        campaign_disposition_df = campaign_filtered_df[campaign_filtered_df['Disposition'].isin(specific_dispositions)]
+        disposition_counts = campaign_disposition_df['Disposition'].value_counts()
+        
+        color_map = {
+            'Decision Maker - NYI': '#4C84FF',
+            'Unknown': '#F9C74F',
+            'Wrong Number': '#F9844A',
+            'Dead Call': '#FF6B6B',
+            'Voicemail': '#9B59B6'
+        }
+        
+        # Add counts to disposition names for the legend
+        disposition_counts_with_counts = {}
+        for disposition, count in disposition_counts.items():
+            disposition_counts_with_counts[f"{disposition} ({count})"] = count
+        
+        fig_campaign_disposition_pie = px.pie(
+            values=list(disposition_counts_with_counts.values()),
+            names=list(disposition_counts_with_counts.keys()),
+            title="Total Calls by Disposition (Campaign Filtered)",
+            color_discrete_map=color_map
+        )
+        fig_campaign_disposition_pie.update_layout(
+            height=400,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#E0E0E0')
+        )
+        st.plotly_chart(fig_campaign_disposition_pie, use_container_width=True)
+        
+        # Campaign Reachability Analysis
+        st.markdown('<div class="section-header">Campaign Reachability Analysis</div>', unsafe_allow_html=True)
+        
+        # Calculate the metrics
+        dead_calls = disposition_counts.get('Dead Call', 0)
+        unknown_calls = disposition_counts.get('Unknown', 0)
+        voicemail_calls = disposition_counts.get('Voicemail', 0)
+        decision_maker = disposition_counts.get('Decision Maker - NYI', 0)
+        wrong_number = disposition_counts.get('Wrong Number', 0)
+        
+        # Calculate totals
+        low_reachability_total = dead_calls + unknown_calls + voicemail_calls
+        good_reachability_total = decision_maker + wrong_number
+        
+        # Determine reachability status
+        if low_reachability_total > good_reachability_total:
+            status = "⚠️ LOW REACHABILITY"
+            status_color = "#FF6B6B"
+            message = f"""This campaign shows low reachability.<br><br>
+Low Engagement ({low_reachability_total:,} calls):<br>
+• Dead Calls: {dead_calls:,}<br>
+• Unknown: {unknown_calls:,}<br>
+• Voicemails: {voicemail_calls:,}<br><br>
+Good Engagement ({good_reachability_total:,} calls):<br>
+• Decision Makers: {decision_maker:,}<br>
+• Wrong Numbers: {wrong_number:,}<br><br>
+Low engagement exceeds good engagement — action may be needed to improve contact rates."""
+        else:
+            status = "✅ GOOD REACHABILITY"
+            status_color = "#4C84FF"
+            message = f"""This campaign shows good reachability.<br><br>
+Good Engagement ({good_reachability_total:,} calls):<br>
+• Decision Makers: {decision_maker:,}<br>
+• Wrong Numbers: {wrong_number:,}<br><br>
+Low Engagement ({low_reachability_total:,} calls):<br>
+• Dead Calls: {dead_calls:,}<br>
+• Unknown: {unknown_calls:,}<br>
+• Voicemails: {voicemail_calls:,}<br><br>
+Good engagement exceeds low engagement — campaign is performing well."""
+        
+        # Display the analysis
+        st.markdown(f'''
+        <div style="
+            background: linear-gradient(135deg, {status_color}20 0%, {status_color}10 100%);
+            border: 2px solid {status_color};
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            color: #E0E0E0;
+        ">
+            <div style="
+                font-size: 1.5rem;
+                font-weight: bold;
+                color: {status_color};
+                margin-bottom: 1rem;
+                text-align: center;
+            ">
+                {status}
+            </div>
+            <div style="
+                font-size: 1rem;
+                line-height: 1.6;
+                text-align: left;
+            ">
+                {message}
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
