@@ -36,7 +36,7 @@ if 'username' not in st.session_state:
 def logout():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    st.experimental_rerun()
+    st.rerun()
 
 # Login form
 if not st.session_state.authenticated:
@@ -45,11 +45,12 @@ if not st.session_state.authenticated:
     username_input = st.text_input("Username")
     password_input = st.text_input("Password", type="password")
 
-    if st.button("Login"):
+    if st.button("Login", key="login_button"):
         if username_input.strip().lower() in allowed_users_lower and password_input == password:
             st.session_state.authenticated = True
             st.session_state.username = username_input.strip().lower()
             st.success("Login successful. Welcome!")
+            st.rerun()
         else:
             st.error("Invalid username or password.")
     st.stop()
