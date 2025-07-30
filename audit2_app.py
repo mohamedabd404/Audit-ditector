@@ -162,11 +162,40 @@ st.markdown("""
     /* Footer */
     .footer {
         text-align: center;
-        padding: 1rem;
-        color: #6C757D;
+        padding: 1.2rem;
+        color: #8A8D9A;
         font-size: 0.9rem;
+        font-weight: 400;
         border-top: 1px solid #2B2D42;
         margin-top: 2rem;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(180deg, rgba(30, 30, 47, 0.95) 0%, rgba(30, 30, 47, 0.98) 100%);
+        z-index: 1000;
+        box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(8px);
+    }
+    
+    .footer-link {
+        color: #4C84FF;
+        text-decoration: none !important;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .footer-link:hover {
+        color: #6BA4FF;
+        text-decoration: none !important;
+    }
+    
+    .footer-link:visited {
+        text-decoration: none !important;
+    }
+    
+    .footer-link:active {
+        text-decoration: none !important;
     }
     
     /* Typography */
@@ -402,16 +431,15 @@ if uploaded_file is not None:
     df['Recording Length (Formatted)'] = df['Recording Length (Seconds)'].apply(format_duration)
     original_df['Recording Length (Formatted)'] = original_df['Recording Length (Seconds)'].apply(format_duration)
     
-    # Create separate filtered dataframes
-    # For flagged calls - only filter by agent
-    flagged_filtered_df = df.copy()
-    if st.session_state.selected_agent and st.session_state.selected_agent != 'All users':
-        flagged_filtered_df = flagged_filtered_df[flagged_filtered_df['Agent Name'] == st.session_state.selected_agent]
+    # Create filtered dataframe for flagged calls only
+    filtered_df = df.copy()
     
-    # For campaign summary - only filter by campaign
-    campaign_filtered_df = df.copy()
+    # Apply filters only to the filtered dataframe for flagged calls
+    if st.session_state.selected_agent and st.session_state.selected_agent != 'All users':
+        filtered_df = filtered_df[filtered_df['Agent Name'] == st.session_state.selected_agent]
+    
     if st.session_state.selected_campaign and st.session_state.selected_campaign != 'All campaigns':
-        campaign_filtered_df = campaign_filtered_df[campaign_filtered_df['Current campaign'] == st.session_state.selected_campaign]
+        filtered_df = filtered_df[filtered_df['Current campaign'] == st.session_state.selected_campaign]
     
     # Overall Summary
     st.markdown('<div class="overall-summary-header">Overall Summary</div>', unsafe_allow_html=True)
@@ -481,8 +509,8 @@ if uploaded_file is not None:
     # Flagged Calls
     st.markdown('<div class="section-header">Flagged Calls</div>', unsafe_allow_html=True)
     
-    # Get flagged calls from agent-filtered data only
-    flagged_calls = flagged_filtered_df[flagged_filtered_df[['Flag - Voicemail Over 15 sec', 'Flag - Dead Call Over 15 sec', 
+    # Get flagged calls from filtered data
+    flagged_calls = filtered_df[filtered_df[['Flag - Voicemail Over 15 sec', 'Flag - Dead Call Over 15 sec', 
                            'Flag - Decision Maker - NYI Under 10 sec', 'Flag - Wrong Number Under 10 sec', 
                            'Flag - Unknown Under 5 sec']].eq('Check').any(axis=1)]
     
@@ -498,10 +526,10 @@ if uploaded_file is not None:
                 st.dataframe(flagged_calls[available_columns], use_container_width=True)
         
         with col2:
-            # Pie chart - Show only specific dispositions for agent-filtered data
+            # Pie chart - Show only specific dispositions for filtered data
             # Filter to only show the 4 specific dispositions
             specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown']
-            pie_chart_df = flagged_filtered_df[flagged_filtered_df['Disposition'].isin(specific_dispositions)]
+            pie_chart_df = filtered_df[filtered_df['Disposition'].isin(specific_dispositions)]
             disposition_counts = pie_chart_df['Disposition'].value_counts()
             
             color_map = {
@@ -532,12 +560,12 @@ if uploaded_file is not None:
         
         # Disposition Summary
         
-        # Calculate totals for the 4 specific dispositions from agent-filtered data
+        # Calculate totals for the 4 specific dispositions from filtered data
         specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown']
         disposition_totals = {}
         
         for disposition in specific_dispositions:
-            disposition_totals[disposition] = len(flagged_filtered_df[flagged_filtered_df['Disposition'] == disposition])
+            disposition_totals[disposition] = len(filtered_df[filtered_df['Disposition'] == disposition])
         
         # Create summary cards
         col1, col2, col3, col4 = st.columns(4)
@@ -609,7 +637,7 @@ if uploaded_file is not None and 'Current campaign' in original_df.columns:
         
         # Filter to only show the 5 specific dispositions for selected campaign (including Voicemail)
         specific_dispositions = ['Decision Maker - NYI', 'Dead Call', 'Wrong Number', 'Unknown', 'Voicemail']
-        campaign_disposition_df = campaign_filtered_df[campaign_filtered_df['Disposition'].isin(specific_dispositions)]
+        campaign_disposition_df = filtered_df[filtered_df['Disposition'].isin(specific_dispositions)]
         disposition_counts = campaign_disposition_df['Disposition'].value_counts()
         
         color_map = {
@@ -707,3 +735,10 @@ Good engagement exceeds low engagement — campaign is performing well."""
             </div>
         </div>
         ''', unsafe_allow_html=True)
+    
+    # Credits Footer
+    st.markdown('''
+    <div class="footer">
+        Developed by <a href="https://t.me/Mohmed_abdo" target="_blank" class="footer-link">Mohamed Abdo</a> © 2025
+    </div>
+    ''', unsafe_allow_html=True)
