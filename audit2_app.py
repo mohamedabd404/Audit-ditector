@@ -405,12 +405,16 @@ if uploaded_file is not None:
     df['Flag - Wrong Number Under 10 sec'] = ((df['Disposition'] == 'Wrong Number') & (df['Recording Length (Seconds)'] < 10)).map({True: 'Check', False: ''})
     df['Flag - Unknown Under 5 sec'] = ((df['Disposition'] == 'Unknown') & (df['Recording Length (Seconds)'] < 5)).map({True: 'Check', False: ''})
     
+    # New flag for potential release/tech issue
+    df['Flag - Potential Release/Tech Issue'] = ((df['Disposition'] == 'Dead Call') | (df['Disposition'] == 'Unknown')).map({True: 'Check', False: ''})
+    
     # Also add flag columns to original_df for Agent Summary
     original_df['Flag - Voicemail Over 15 sec'] = ((original_df['Disposition'] == 'Voicemail') & (original_df['Recording Length (Seconds)'] > 15)).map({True: 'Check', False: ''})
     original_df['Flag - Dead Call Over 15 sec'] = ((original_df['Disposition'] == 'Dead Call') & (original_df['Recording Length (Seconds)'] > 15)).map({True: 'Check', False: ''})
     original_df['Flag - Decision Maker - NYI Under 10 sec'] = ((original_df['Disposition'] == 'Decision Maker - NYI') & (original_df['Recording Length (Seconds)'] < 10)).map({True: 'Check', False: ''})
     original_df['Flag - Wrong Number Under 10 sec'] = ((original_df['Disposition'] == 'Wrong Number') & (original_df['Recording Length (Seconds)'] < 10)).map({True: 'Check', False: ''})
     original_df['Flag - Unknown Under 5 sec'] = ((original_df['Disposition'] == 'Unknown') & (original_df['Recording Length (Seconds)'] < 5)).map({True: 'Check', False: ''})
+    original_df['Flag - Potential Release/Tech Issue'] = ((original_df['Disposition'] == 'Dead Call') | (original_df['Disposition'] == 'Unknown')).map({True: 'Check', False: ''})
     
     # Add call duration label
     df['Call Duration Label'] = pd.cut(df['Recording Length (Seconds)'], 
@@ -495,12 +499,26 @@ if uploaded_file is not None:
             'Flag - Decision Maker - NYI Under 10 sec': lambda x: (x == 'Check').sum(),
             'Flag - Wrong Number Under 10 sec': lambda x: (x == 'Check').sum(),
             'Flag - Unknown Under 5 sec': lambda x: (x == 'Check').sum(),
-            'Disposition': lambda x: (x == 'Dead Call').sum(),
         }).reset_index()
-        agent_summary['Total Unknown Calls'] = original_df.groupby('Agent Name')['Disposition'].apply(
+        
+        # Calculate Decision Maker - NYI and Wrong Number totals per agent (for internal calculation only)
+        decision_maker_nyi_counts = original_df.groupby('Agent Name')['Disposition'].apply(
+            lambda x: (x == 'Decision Maker - NYI').sum()
+        )
+        wrong_number_counts = original_df.groupby('Agent Name')['Disposition'].apply(
+            lambda x: (x == 'Wrong Number').sum()
+        )
+        dead_call_counts = original_df.groupby('Agent Name')['Disposition'].apply(
+            lambda x: (x == 'Dead Call').sum()
+        )
+        unknown_counts = original_df.groupby('Agent Name')['Disposition'].apply(
             lambda x: (x == 'Unknown').sum()
-        ).reset_index(0, drop=True)
-        agent_summary = agent_summary.rename(columns={'Disposition': 'Total Dead Calls'})
+        )
+        
+        # Calculate potential release/tech issue flag
+        agent_summary['Potential Release/Tech Issue'] = agent_summary.apply(
+            lambda row: 'Yes' if (decision_maker_nyi_counts.get(row['Agent Name'], 0) + wrong_number_counts.get(row['Agent Name'], 0)) < (dead_call_counts.get(row['Agent Name'], 0) + unknown_counts.get(row['Agent Name'], 0)) else 'No', axis=1
+        )
         
         st.dataframe(agent_summary, use_container_width=True)
     
