@@ -574,16 +574,28 @@ if uploaded_file is not None:
             disposition_counts = pie_chart_df['Disposition'].value_counts()
             
             color_map = {
-                'Decision Maker - NYI': '#4C84FF',
-                'Unknown': '#F9C74F',
-                'Wrong Number': '#F9844A',
-                'Dead Call': '#FF6B6B'
+                'Decision Maker - NYI': '#4C84FF',  
+                'Unknown': '#ca1b1b',              
+                'Wrong Number': '#F9C74F',          
+                'Dead Call': '#FF6B6B'             
             }
             
             # Add counts to disposition names for the legend
+            # Reorder to ensure Dead Call and Unknown are adjacent
             disposition_counts_with_counts = {}
+            
+            # Define the order we want: Dead Call and Unknown should be adjacent
+            desired_order = ['Decision Maker - NYI', 'Wrong Number', 'Dead Call', 'Unknown']
+            
+            # Add items in the desired order
+            for disposition in desired_order:
+                if disposition in disposition_counts:
+                    disposition_counts_with_counts[f"{disposition} ({disposition_counts[disposition]})"] = disposition_counts[disposition]
+            
+            # Add any remaining dispositions that weren't in our desired order
             for disposition, count in disposition_counts.items():
-                disposition_counts_with_counts[f"{disposition} ({count})"] = count
+                if disposition not in desired_order:
+                    disposition_counts_with_counts[f"{disposition} ({count})"] = count
             
             fig_pie = px.pie(
                 values=list(disposition_counts_with_counts.values()),
@@ -591,13 +603,17 @@ if uploaded_file is not None:
                 title="Total Calls by Disposition",
                 color_discrete_map=color_map
             )
+            # Force the exact order we want
+            fig_pie.update_traces(
+                marker_colors=[color_map.get(name.split(' (')[0], '#000000') for name in disposition_counts_with_counts.keys()]
+            )
             fig_pie.update_layout(
                 height=400,
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color='#E0E0E0')
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, use_container_width=True, key="pie_chart_1")
         
         # Disposition Summary
         
@@ -683,16 +699,28 @@ if uploaded_file is not None and 'Current campaign' in original_df.columns:
         
         color_map = {
             'Decision Maker - NYI': '#4C84FF',
-            'Unknown': '#F9C74F',
-            'Wrong Number': '#F9844A',
+            'Unknown': '#ca1b1b',
+            'Wrong Number': '#F9C74F',
             'Dead Call': '#FF6B6B',
             'Voicemail': '#9B59B6'
         }
         
         # Add counts to disposition names for the legend
+        # Reorder to ensure Dead Call and Unknown are adjacent
         disposition_counts_with_counts = {}
+        
+        # Define the order we want: Dead Call and Unknown should be adjacent
+        desired_order = ['Decision Maker - NYI', 'Wrong Number', 'Dead Call', 'Unknown', 'Voicemail']
+        
+        # Add items in the desired order
+        for disposition in desired_order:
+            if disposition in disposition_counts:
+                disposition_counts_with_counts[f"{disposition} ({disposition_counts[disposition]})"] = disposition_counts[disposition]
+        
+        # Add any remaining dispositions that weren't in our desired order
         for disposition, count in disposition_counts.items():
-            disposition_counts_with_counts[f"{disposition} ({count})"] = count
+            if disposition not in desired_order:
+                disposition_counts_with_counts[f"{disposition} ({count})"] = count
         
         fig_campaign_disposition_pie = px.pie(
             values=list(disposition_counts_with_counts.values()),
@@ -700,13 +728,17 @@ if uploaded_file is not None and 'Current campaign' in original_df.columns:
             title="Total Calls by Disposition (Campaign Filtered)",
             color_discrete_map=color_map
         )
+        # Force the exact order we want
+        fig_campaign_disposition_pie.update_traces(
+            marker_colors=[color_map.get(name.split(' (')[0], '#000000') for name in disposition_counts_with_counts.keys()]
+        )
         fig_campaign_disposition_pie.update_layout(
             height=400,
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             font=dict(color='#E0E0E0')
         )
-        st.plotly_chart(fig_campaign_disposition_pie, use_container_width=True)
+        st.plotly_chart(fig_campaign_disposition_pie, use_container_width=True, key="pie_chart_2")
         
         # Campaign Reachability Analysis
         st.markdown('<div class="section-header">Campaign Reachability Analysis</div>', unsafe_allow_html=True)
