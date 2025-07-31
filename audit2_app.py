@@ -331,20 +331,25 @@ with st.sidebar:
         st.session_state.selected_agent = 'All users'
     
     # Update agent options if we have data
-    if 'original_df' in st.session_state and 'Agent Name' in st.session_state.original_df.columns:
-        agent_names = ['All users'] + sorted(list(st.session_state.original_df['Agent Name'].unique()))
+    if 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
+        # Convert to string and handle NaN values
+        agent_values = st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique()
+        agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
         st.session_state.agent_options = agent_names
     
     # Force refresh of agent options if data is available
-    if uploaded_file is not None and 'original_df' in st.session_state and 'Agent Name' in st.session_state.original_df.columns:
-        agent_names = ['All users'] + sorted(list(st.session_state.original_df['Agent Name'].unique()))
+    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
+        # Convert to string and handle NaN values
+        agent_values = st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique()
+        agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
         st.session_state.agent_options = agent_names
     
     selected_agent = st.selectbox("Select Agent", st.session_state.agent_options, key="agent_selectbox")
     
     # Debug: Show available agents
-    if uploaded_file is not None and 'original_df' in st.session_state and 'Agent Name' in st.session_state.original_df.columns:
-        st.caption(f"Available agents: {len(st.session_state.original_df['Agent Name'].unique())} agents loaded")
+    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
+        agent_count = len(st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique())
+        st.caption(f"Available agents: {agent_count} agents loaded")
     
     # Update session state when selection changes
     if selected_agent != st.session_state.selected_agent:
@@ -359,13 +364,17 @@ with st.sidebar:
         st.session_state.selected_campaign = 'All campaigns'
     
     # Update campaign options if we have data
-    if 'original_df' in st.session_state and 'Current campaign' in st.session_state.original_df.columns:
-        campaign_names = ['All campaigns'] + sorted(list(st.session_state.original_df['Current campaign'].unique()))
+    if 'original_df' in st.session_state and st.session_state.original_df is not None and 'Current campaign' in st.session_state.original_df.columns:
+        # Convert to string and handle NaN values
+        campaign_values = st.session_state.original_df['Current campaign'].astype(str).fillna('Unknown').unique()
+        campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
         st.session_state.campaign_options = campaign_names
     
     # Force refresh of campaign options if data is available
-    if uploaded_file is not None and 'original_df' in st.session_state and 'Current campaign' in st.session_state.original_df.columns:
-        campaign_names = ['All campaigns'] + sorted(list(st.session_state.original_df['Current campaign'].unique()))
+    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Current campaign' in st.session_state.original_df.columns:
+        # Convert to string and handle NaN values
+        campaign_values = st.session_state.original_df['Current campaign'].astype(str).fillna('Unknown').unique()
+        campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
         st.session_state.campaign_options = campaign_names
     
     selected_campaign = st.selectbox("Select Campaign", st.session_state.campaign_options, key="campaign_selectbox")
