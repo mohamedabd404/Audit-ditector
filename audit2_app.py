@@ -2,6 +2,29 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import io
+
+# Helper function to safely read CSV files
+def safe_read_csv(uploaded_file):
+    """Safely read CSV file with multiple encoding attempts"""
+    encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+    
+    for encoding in encodings:
+        try:
+            # Reset file pointer to beginning
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file, encoding=encoding)
+            return df
+        except Exception as e:
+            continue
+    
+    # If all encodings fail, try without specifying encoding
+    try:
+        uploaded_file.seek(0)
+        df = pd.read_csv(uploaded_file)
+        return df
+    except Exception as e:
+        raise Exception(f"Failed to read CSV file with any encoding: {str(e)}")
 
 # Page configuration
 st.set_page_config(
@@ -330,25 +353,33 @@ with st.sidebar:
     if 'selected_agent' not in st.session_state:
         st.session_state.selected_agent = 'All users'
     
-    # Update agent options if we have data
-    if 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
-        # Convert to string and handle NaN values
-        agent_values = st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique()
-        agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
-        st.session_state.agent_options = agent_names
-    
-    # Force refresh of agent options if data is available
-    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
-        # Convert to string and handle NaN values
-        agent_values = st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique()
-        agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
-        st.session_state.agent_options = agent_names
+    # Update agent options immediately when data is available
+    if uploaded_file is not None:
+        # Check if we need to reload data
+        file_key = uploaded_file.name + str(uploaded_file.size)
+        
+        if 'current_file_key' not in st.session_state or st.session_state.current_file_key != file_key:
+            # Load data immediately for agent options
+            try:
+                temp_df = safe_read_csv(uploaded_file)
+                if 'Agent Name' in temp_df.columns:
+                    agent_values = temp_df['Agent Name'].astype(str).fillna('Unknown').unique()
+                    agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
+                    st.session_state.agent_options = agent_names
+            except Exception as e:
+                st.error(f"Error reading CSV file: {str(e)}")
+                st.session_state.agent_options = ['All users']
+        elif 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
+            # Use cached data
+            agent_values = st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique()
+            agent_names = ['All users'] + sorted([str(x) for x in agent_values if str(x) != 'nan'])
+            st.session_state.agent_options = agent_names
     
     selected_agent = st.selectbox("Select Agent", st.session_state.agent_options, key="agent_selectbox")
     
     # Debug: Show available agents
-    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Agent Name' in st.session_state.original_df.columns:
-        agent_count = len(st.session_state.original_df['Agent Name'].astype(str).fillna('Unknown').unique())
+    if uploaded_file is not None and len(st.session_state.agent_options) > 1:
+        agent_count = len(st.session_state.agent_options) - 1  # Subtract 1 for 'All users'
         st.caption(f"Available agents: {agent_count} agents loaded")
     
     # Update session state when selection changes
@@ -363,19 +394,27 @@ with st.sidebar:
     if 'selected_campaign' not in st.session_state:
         st.session_state.selected_campaign = 'All campaigns'
     
-    # Update campaign options if we have data
-    if 'original_df' in st.session_state and st.session_state.original_df is not None and 'Current campaign' in st.session_state.original_df.columns:
-        # Convert to string and handle NaN values
-        campaign_values = st.session_state.original_df['Current campaign'].astype(str).fillna('Unknown').unique()
-        campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
-        st.session_state.campaign_options = campaign_names
-    
-    # Force refresh of campaign options if data is available
-    if uploaded_file is not None and 'original_df' in st.session_state and st.session_state.original_df is not None and 'Current campaign' in st.session_state.original_df.columns:
-        # Convert to string and handle NaN values
-        campaign_values = st.session_state.original_df['Current campaign'].astype(str).fillna('Unknown').unique()
-        campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
-        st.session_state.campaign_options = campaign_names
+    # Update campaign options immediately when data is available
+    if uploaded_file is not None:
+        # Check if we need to reload data
+        file_key = uploaded_file.name + str(uploaded_file.size)
+        
+        if 'current_file_key' not in st.session_state or st.session_state.current_file_key != file_key:
+            # Load data immediately for campaign options
+            try:
+                temp_df = safe_read_csv(uploaded_file)
+                if 'Current campaign' in temp_df.columns:
+                    campaign_values = temp_df['Current campaign'].astype(str).fillna('Unknown').unique()
+                    campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
+                    st.session_state.campaign_options = campaign_names
+            except Exception as e:
+                st.error(f"Error reading CSV file: {str(e)}")
+                st.session_state.campaign_options = ['All campaigns']
+        elif 'original_df' in st.session_state and st.session_state.original_df is not None and 'Current campaign' in st.session_state.original_df.columns:
+            # Use cached data
+            campaign_values = st.session_state.original_df['Current campaign'].astype(str).fillna('Unknown').unique()
+            campaign_names = ['All campaigns'] + sorted([str(x) for x in campaign_values if str(x) != 'nan'])
+            st.session_state.campaign_options = campaign_names
     
     selected_campaign = st.selectbox("Select Campaign", st.session_state.campaign_options, key="campaign_selectbox")
     
@@ -397,10 +436,14 @@ if uploaded_file is not None:
     
     if 'current_file_key' not in st.session_state or st.session_state.current_file_key != file_key:
         # Load and process data
-        df = pd.read_csv(uploaded_file)
-        st.session_state.df = df
-        st.session_state.original_df = df.copy()
-        st.session_state.current_file_key = file_key
+        try:
+            df = safe_read_csv(uploaded_file)
+            st.session_state.df = df
+            st.session_state.original_df = df.copy()
+            st.session_state.current_file_key = file_key
+        except Exception as e:
+            st.error(f"Error reading CSV file: {str(e)}")
+            st.stop()
     else:
         # Use cached data
         df = st.session_state.df.copy()
@@ -519,9 +562,6 @@ if uploaded_file is not None:
         agent_summary = original_df.groupby('Agent Name').agg({
             'Flag - Voicemail Over 15 sec': lambda x: (x == 'Check').sum(),
             'Flag - Dead Call Over 15 sec': lambda x: (x == 'Check').sum(),
-            'Flag - Decision Maker - NYI Under 10 sec': lambda x: (x == 'Check').sum(),
-            'Flag - Wrong Number Under 10 sec': lambda x: (x == 'Check').sum(),
-            'Flag - Unknown Under 5 sec': lambda x: (x == 'Check').sum(),
         }).reset_index()
         
         # Calculate Decision Maker - NYI and Wrong Number totals per agent (for internal calculation only)
@@ -560,7 +600,7 @@ if uploaded_file is not None:
         
         with col1:
             # Display flagged calls table with specific columns
-            display_columns = ['Agent Name', 'Current campaign', 'Disposition', 'Recording Length (Formatted)', 'Phone Number']
+            display_columns = ['Agent Name', 'Disposition', 'Recording Length (Formatted)', 'Phone Number']
             available_columns = [col for col in display_columns if col in flagged_calls.columns]
             
             if available_columns:
